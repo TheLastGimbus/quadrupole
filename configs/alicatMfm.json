@@ -1,0 +1,27 @@
+{
+  "name": "",
+  "controllers": [
+    {
+      "type": "UnixTime",
+      "params": [
+        {
+          "type": "time",
+          "name": "system time"
+        }
+      ]
+    },
+    {
+      "type": "alicat_mfm",
+      "port": "/dev/ttyUSB1",
+      "params": [
+        {
+          "type": "value",
+          "name": "mass flow",
+          "unit": "sccm",
+          "deviceUnit": "mg/s",
+          "gas": "air"
+        }
+      ]
+    }
+  ]
+}

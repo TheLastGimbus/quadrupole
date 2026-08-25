@@ -23,6 +23,7 @@ from controllers.UnixTimeController import UnixTimeController
 from controllers.UT804 import UT804Controller
 from controllers.bm252s import BM252sController
 from config import Config, ControllerConfig, ParamConfig
+from controllers.alicatMfmController import AlicatMFMController
 
 from utils import DataPacket
 
@@ -109,6 +110,7 @@ class Executor(QObject):
         self.controllerTemplates[UnixTimeController.getName()] = UnixTimeController
         self.controllerTemplates[UT804Controller.getName()] = UT804Controller
         self.controllerTemplates[BM252sController.getName()] = BM252sController
+        self.controllerTemplates[AlicatMFMController.getName()] = AlicatMFMController
 
         for controller in self.config.controllers:
             self.addController(
