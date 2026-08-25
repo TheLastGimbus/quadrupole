@@ -1,5 +1,7 @@
 import serial
 import time
+import statistics
+from collections import deque
 from controllers.controller import Controller
 
 class AlicatMFMController(Controller):
@@ -9,6 +11,9 @@ class AlicatMFMController(Controller):
         self.name = None
         self.device_unit = "sccm"
         self.gas = "air"
+        self.moving_avg_time = 0.0
+        self.filter_type = "median"   # "mean", "median"
+        self.samples = deque()
         self.config = config
         self.parseConfig()
 
@@ -25,6 +30,14 @@ class AlicatMFMController(Controller):
                     self.gas = param.json["gas"]
                 except KeyError:
                     self.gas = "air"
+                try:
+                    self.moving_avg_time = float(param.json["movingAverageTime"])
+                except KeyError:
+                    self.moving_avg_time = 0.0
+                try:
+                    self.filter_type = param.json["filterType"]
+                except KeyError:
+                    self.filter_type = "median"
         self.port = self.config.json["port"]
 
     @staticmethod
@@ -106,7 +119,29 @@ class AlicatMFMController(Controller):
             val = float(parts[4])
 
             if self.device_unit == "mg/s":
-                return self.mg_s_to_sccm(val, self.gas)
+                val = self.mg_s_to_sccm(val, self.gas)
+
+            # --- filtr kroczący ---
+            if self.moving_avg_time <= 0:
+                return val
+
+            now = time.time()
+            self.samples.append((now, val))
+
+            cutoff = now - self.moving_avg_time
+            while self.samples and self.samples[0][0] < cutoff:
+                self.samples.popleft()
+
+            if not self.samples:
+                return val
+
+            values = [v for _, v in self.samples]
+
+            if self.filter_type == "mean":
+                return statistics.mean(values)
+            elif self.filter_type == "median":
+                return statistics.median(values)
+
             return val
 
         except (ValueError, IndexError, Exception):

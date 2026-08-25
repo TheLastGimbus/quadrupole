@@ -19,7 +19,9 @@
           "name": "mass flow",
           "unit": "sccm",
           "deviceUnit": "mg/s",
-          "gas": "air"
+          "gas": "air",
+          "movingAverageTime": 1.5,
+          "filterType": "median"
         }
       ]
     }
