@@ -163,6 +163,7 @@ cython_debug/
 profiles/
 
 .vscode/
+.idea/
 
 data/*
 notes
