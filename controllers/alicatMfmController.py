@@ -1,6 +1,7 @@
 import serial
 import time
 import statistics
+import logging
 from collections import deque
 from controllers.controller import Controller
 
@@ -8,7 +9,10 @@ class AlicatMFMController(Controller):
     def __init__(self, config):
         self.serial = None
         self.port = None
+        self.unit = "A"
         self.name = None
+        self.setpoint_param = None
+        self.setpoint_readout_param = None
         self.device_unit = "sccm"
         self.gas = "air"
         self.moving_avg_time = 0.0
@@ -38,7 +42,15 @@ class AlicatMFMController(Controller):
                     self.filter_type = param.json["filterType"]
                 except KeyError:
                     self.filter_type = "median"
+            elif param.type == "setpoint":
+                self.setpoint_param = param.name
+            elif param.type == "setpoint_readout":
+                self.setpoint_readout_param = param.name
         self.port = self.config.json["port"]
+        self.unit = self.config.json.get("unit", "A")
+        if len(self.unit) != 1:
+            logging.warning(f"Invalid Alicat unit ID: {self.unit}, falling back to A")
+            self.unit = "A"
 
     @staticmethod
     def mg_s_to_sccm(mg_s: float, gas: str = "n2") -> float:
@@ -55,24 +67,38 @@ class AlicatMFMController(Controller):
         return (mg_s * 60) / rho
 
     @staticmethod
+    def sccm_to_mg_s(sccm: float, gas: str = "n2") -> float:
+        densities = {
+            "n2":  1.145,
+            "air": 1.184,
+            "o2":  1.308,
+            "ar":  1.633,
+            "he":  0.164,
+            "h2":  0.0838,
+            "co2": 1.799,
+        }
+        rho = densities.get(gas.lower(), 1.145)
+        return (sccm * rho) / 60
+
+    @staticmethod
     def getName() -> str:
         return "alicat_mfm"
 
     @staticmethod
     def getIsEditableDict() -> dict[str, bool]:
-        return {"value": False}
+        return {"value": False, "setpoint": True, "setpoint_readout": False}
 
     @staticmethod
     def getUnitDict() -> dict[str, str]:
-        return {"value": "sccm"}
+        return {"value": "sccm", "setpoint": "sccm", "setpoint_readout": "sccm"}
 
     @staticmethod
     def getMinDict() -> dict[str, float]:
-        return {}
+        return {"setpoint": 0}
 
     @staticmethod
     def getMaxDict() -> dict[str, float]:
-        return {}
+        return {"setpoint": 1000}
 
     def connect(self) -> bool:
         try:
@@ -100,12 +126,12 @@ class AlicatMFMController(Controller):
             return False
 
     def read(self, param: str) -> float:
-        if param != self.name or self.serial is None or not self.serial.is_open:
+        if self.serial is None or not self.serial.is_open:
             return 0.0
 
         try:
             self.serial.reset_input_buffer()
-            self.serial.write(b"A\r")
+            self.serial.write(f"{self.unit}\r".encode())
             time.sleep(0.05)
 
             raw = self.serial.read_until(b'\r').decode('ascii').strip()
@@ -116,13 +142,20 @@ class AlicatMFMController(Controller):
             if len(parts) < 6:
                 return 0.0
 
-            val = float(parts[4])
+            if param == self.name:
+                idx = 4
+            elif param == self.setpoint_readout_param:
+                idx = 5
+            else:
+                return 0.0
+
+            val = float(parts[idx])
 
             if self.device_unit == "mg/s":
                 val = self.mg_s_to_sccm(val, self.gas)
 
-            # --- filtr kroczący ---
-            if self.moving_avg_time <= 0:
+            # --- filtr kroczący (tylko dla odczytów przepływu) ---
+            if param != self.name or self.moving_avg_time <= 0:
                 return val
 
             now = time.time()
@@ -148,7 +181,18 @@ class AlicatMFMController(Controller):
             return 0.0
 
     def adjust(self, param: str, value: float) -> None:
-        pass
+        if param != self.setpoint_param or self.serial is None or not self.serial.is_open:
+            return
+
+        try:
+            # Konwersja sccm (jednostki GUI) na jednostki urządzenia (mg/s)
+            if self.device_unit == "mg/s":
+                value = self.sccm_to_mg_s(value, self.gas)
+
+            self.serial.reset_input_buffer()
+            self.serial.write(f"{self.unit}S{value:.3f}\r".encode())
+        except Exception:
+            logging.error("Couldn't set Alicat setpoint")
 
     def enable(self, state: bool) -> None:
         pass

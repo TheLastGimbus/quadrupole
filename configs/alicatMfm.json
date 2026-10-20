@@ -12,7 +12,8 @@
     },
     {
       "type": "alicat_mfm",
-      "port": "/dev/ttyUSB1",
+      "port": "/dev/ttyUSB0",
+      "unit": "A",
       "params": [
         {
           "type": "value",
@@ -22,6 +23,19 @@
           "gas": "air",
           "movingAverageTime": 1.5,
           "filterType": "median"
+        },
+        {
+          "type": "setpoint",
+          "name": "flow setpoint",
+          "unit": "sccm",
+          "default": 0,
+          "min": 0,
+          "max": 1000
+        },
+        {
+          "type": "setpoint_readout",
+          "name": "setpoint read",
+          "unit": "sccm"
         }
       ]
     }
